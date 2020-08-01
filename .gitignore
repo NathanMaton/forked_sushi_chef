@@ -102,3 +102,12 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# pycharm files
+.idea/
+
+# os files
+.DS_Store
+
+# test files
+testchef.py
