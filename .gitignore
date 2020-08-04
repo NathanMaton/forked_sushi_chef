@@ -111,3 +111,9 @@ venv.bak/
 
 # test files
 testchef.py
+
+# data
+chefdata/
+restore/
+storage/
+.ricecookerfilecache/
