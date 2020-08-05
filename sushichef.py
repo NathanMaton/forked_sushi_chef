@@ -3,23 +3,22 @@
 from PyPDF2 import PdfFileReader, PdfFileWriter
 
 from ricecooker.chefs import SushiChef
-from ricecooker.classes.nodes import ChannelNode, HTML5AppNode, TopicNode, VideoNode, DocumentNode, AudioNode
-from ricecooker.classes.files import DocumentFile, VideoFile, AudioFile
-from ricecooker.classes.files import DocumentFile
+from ricecooker.classes.nodes import TopicNode, VideoNode, DocumentNode
+from ricecooker.classes.files import DocumentFile, VideoFile
 from ricecooker.classes.licenses import get_license
 from ricecooker.utils.pdf import PDFParser
 
+# Scrapping tools
 from bs4 import BeautifulSoup
 import requests
 import os
 import json
-
 import youtube_dl
-import pprint
 import html
 
 DOWNLOADS_FOLDER = 'chefdata'
 
+# Took page ranges from updated master.
 CHANNEL_SPEC = {
     'English':
         {
@@ -91,7 +90,7 @@ CHANNEL_SPEC = {
 }
 
 
-def download_pdfs():
+def download_documents():
     try:
         for idx, key_value_tuple in enumerate(CHANNEL_SPEC.items()):
             language_code = key_value_tuple[1]['language_code']
@@ -156,7 +155,7 @@ def split_left_right_pages(pdfin_path, pdfout_path):
         pdfout.write(out_f)
 
 
-def crop_pdfs():
+def crop_documents():
     for idx, key_value_tuple in enumerate(CHANNEL_SPEC.items()):
         language_code = key_value_tuple[1]['language_code']
         # pdf_url = key_value_tuple[1]['pdf_url']
@@ -232,9 +231,9 @@ def download_videos(topic, language):
     video_descriptions_list = scraped_video_urls[language]['descriptions']
 
     nodes = []
-    for video_num, video_url in enumerate(video_urls_list[0:2]):
+    for video_num, video_url in enumerate(video_urls_list):
         ydl_options = {
-            'file_path': f'downloads/videos/%(id)s_{video_num}_{language}.%(ext)s',  # use the video id for filename
+            'outtmpl': f'downloads/videos/{video_num}_{language}.%(ext)s',  # uses output templates, see documentation
             'writethumbnail': False,
             'no_warnings': True,
             'continuedl': False,
@@ -253,6 +252,9 @@ def download_videos(topic, language):
                     youtube_dl.utils.ExtractorError) as e:
                 print('error_occured')
 
+        ext_p1 = vinfo['requested_formats'][0]['format_id']
+        ext_p2 = vinfo['requested_formats'][0]['ext']
+        video_path = f'downloads/videos/{video_num}_{language}.f{ext_p1}.{ext_p2}'
         video_node = VideoNode(
             source_id=vinfo['webpage_url'],
             title=vinfo['title'],
@@ -263,7 +265,7 @@ def download_videos(topic, language):
             # role=roles.COACH,
             files=[
                 VideoFile(
-                    path=ydl_options['file_path'],
+                    path=video_path,
                     language=language
                 )
             ])
@@ -277,7 +279,9 @@ def add_documents(topic, chapters, language):
         # if chapter has 'children'
         if 'children' in chapter.keys():
             doc_title = chapter['title']
-            child_topic_node = TopicNode(title=doc_title, source_id=language + doc_title)
+            child_topic_node = TopicNode(title=doc_title,
+                                         source_id=language + doc_title,
+                                         thumbnail=DOWNLOADS_FOLDER + '/thumbnail.png')
             for child in chapter['children']:
                 child_doc_title = child['title']
                 doc_node = DocumentNode(
@@ -286,6 +290,7 @@ def add_documents(topic, chapters, language):
                     source_id=language + child_doc_title,
                     license=get_license('CC BY', copyright_holder='NC-SA 4.0'),
                     language=language,
+                    thumbnail=DOWNLOADS_FOLDER + '/thumbnail.png',
                     files=[DocumentFile(path=child['path'],
                                         language=language)],
                 )
@@ -299,6 +304,7 @@ def add_documents(topic, chapters, language):
                 source_id=language + doc_title,
                 license=get_license('CC BY', copyright_holder='NC-SA 4.0'),
                 language=language,
+                thumbnail=DOWNLOADS_FOLDER + '/thumbnail.png',
                 files=[DocumentFile(path=chapter['path'],
                                     language=language)],
             )
@@ -316,38 +322,38 @@ class PointBChef(SushiChef):
     }
 
     def construct_channel(self, **kwargs):
-        download_pdfs()
-        crop_pdfs()
+
+        # these output to the downloads folder
+        download_documents()
+        crop_documents()
         en_chapters = split_pdfs('English')
         my_chapters = split_pdfs('Burmese')
 
         channel = self.get_channel(**kwargs)
+        main_topic_en = TopicNode(title="21ST CENTURY GUIDE English Topic",
+                                  source_id="main_en",
+                                  thumbnail=DOWNLOADS_FOLDER + '/thumbnail.png')
+        topic_videos_en = TopicNode(title="Videos",
+                                    source_id="pointb_en_videos",
+                                    thumbnail = DOWNLOADS_FOLDER + '/videothumbnail.png')
 
-        main_topic_en = TopicNode(title="21ST CENTURY GUIDE", source_id="main_en")
-        topic_videos_en = TopicNode(title="Videos", source_id="pointb_en_videos")
-
-        main_topic_my = TopicNode(title="21ST CENTURY GUIDE", source_id="main_my")
-        topic_videos_my = TopicNode(title="Videos", source_id="pointb_my_videos")
-
+        main_topic_my = TopicNode(title="21ST CENTURY GUIDE Burmese Topic",
+                                  source_id="main_my",
+                                  thumbnail=DOWNLOADS_FOLDER + '/thumbnail.png')
+        topic_videos_my = TopicNode(title="Videos",
+                                    source_id="pointb_my_videos",
+                                    thumbnail = DOWNLOADS_FOLDER + '/videothumbnail.png')
         add_documents(main_topic_en, en_chapters, 'en')
         add_documents(main_topic_my, my_chapters, 'my')
-
         channel.add_child(main_topic_en)
         channel.add_child(main_topic_my)
 
         topic_videos_en = download_videos(topic_videos_en, 'en')
         topic_videos_my = download_videos(topic_videos_my, 'my')
-
         channel.add_child(topic_videos_en)
         channel.add_child(topic_videos_my)
 
         return channel
-
-
-def test_video():
-    # get_video_data()
-    # download_videos('en')
-    pass
 
 
 if __name__ == '__main__':
@@ -355,6 +361,5 @@ if __name__ == '__main__':
     Run this script on the command line using:
         python sushichef.py -v --reset --token=YOURTOKENHERE9139139f3a23232
     """
-    # test_video()
     chef = PointBChef()
     chef.main()
