@@ -176,8 +176,6 @@ def split_pdfs(spec_lang_code):
         print(f'found file at {file_path}, splitting pdf')
         with PDFParser(file_path) as pdfparser:
             chapters = pdfparser.split_subchapters(jsondata=page_ranges)
-            # for chapter in chapters:
-            #     print(chapter)
     else:
         print(f'pdf not found at {file_path}')
     return chapters
@@ -323,7 +321,7 @@ class PointBChef(SushiChef):
 
     def construct_channel(self, **kwargs):
 
-        # these output to the downloads folder
+        # these 2 methods output to the downloads folder
         download_documents()
         crop_documents()
         en_chapters = split_pdfs('English')
